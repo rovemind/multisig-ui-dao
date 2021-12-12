@@ -23,7 +23,7 @@ export async function withTx(
       variant: "success",
       action: <ViewTransactionOnExplorerButton signature={tx} />,
     });
-  } catch (err) {
+  } catch (err: any) {
     snack.enqueueSnackbar(`Error: ${err.toString()}`, {
       variant: "error",
     });

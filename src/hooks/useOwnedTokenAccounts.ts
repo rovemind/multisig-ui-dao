@@ -21,6 +21,10 @@ export function useMultiSigOwnedTokenAccounts(
         programId
       );
       const ownedTokenAccounts = await getOwnedTokenAccounts(connection, signer);
+      console.log([multiSig.toBuffer()]);
+      console.log('programId: ' + programId);
+      console.log('ownedTokenAccounts: ' + ownedTokenAccounts);
+
       setResults(ownedTokenAccounts);
       return ownedTokenAccounts;
     };

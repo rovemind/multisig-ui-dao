@@ -19,6 +19,7 @@ import TableHead from "@material-ui/core/TableHead";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
 import TableRow from "@material-ui/core/TableRow";
+import AttachMoneyIcon from '@material-ui/icons/AttachMoney';
 import BuildIcon from "@material-ui/icons/Build";
 import Tooltip from "@material-ui/core/Tooltip";
 import CircularProgress from "@material-ui/core/CircularProgress";
@@ -41,18 +42,20 @@ import ListItemIcon from "@material-ui/core/ListItemIcon";
 import ListItem from "@material-ui/core/ListItem";
 import ListItemText from "@material-ui/core/ListItemText";
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
+import { LocalOffer } from "@material-ui/icons";
 import BN from "bn.js";
 import {
-  Account,
+  Keypair,
   PublicKey,
+  SystemProgram,
   SYSVAR_RENT_PUBKEY,
   SYSVAR_CLOCK_PUBKEY,
+  LAMPORTS_PER_SOL
 } from "@solana/web3.js";
 import { ViewTransactionOnExplorerButton } from "./Notification";
 import * as idl from "../utils/idl";
 import { useMultisigProgram } from "../hooks/useMultisigProgram";
-import { Token, TOKEN_PROGRAM_ID, u64, AccountInfo as TokenAccount, AccountLayout } from "@solana/spl-token";
-import { MoneyRounded } from "@material-ui/icons";
+import { Token, TOKEN_PROGRAM_ID, u64, AccountInfo as TokenAccount, AccountLayout, AccountInfo } from '@solana/spl-token';
 import { Connection } from "@solana/web3.js";
 import { getMintInfo, getTokenAccount, parseTokenAccount } from "@project-serum/common";
 import { useMultiSigOwnedTokenAccounts } from "../hooks/useOwnedTokenAccounts";
@@ -260,7 +263,7 @@ export function NewMultisigDialog({
     enqueueSnackbar("Creating multisig", {
       variant: "info",
     });
-    const multisig = new Account();
+    const multisig = new Keypair();
     // Disc. + threshold + nonce.
     const baseSize = 8 + 8 + 1 + 4;
     // Add enough for 2 more participants, in case the user changes one's
@@ -303,7 +306,7 @@ export function NewMultisigDialog({
   return (
     <Dialog fullWidth open={open} onClose={_onClose} maxWidth="md">
       <DialogTitle>
-        <Typography variant="h4" component="h2">
+        <Typography variant="h4" component="h3">
           New Multisig
         </Typography>
       </DialogTitle>
@@ -670,6 +673,26 @@ function ixLabel(tx: any, multisigClient: any) {
       />
     );
   }
+  if (tx.account.programId.equals(NATIVE_LOADER_PID)) {
+    const tag = tx.account.data.slice(0, 1);
+    const amountBuf = tx.account.data.slice(1, 9) as Buffer;
+    const amountParsed = u64.fromBuffer(amountBuf);
+    if (Buffer.from([3]).equals(tag)) {
+      return (
+        <ListItemText
+          primary={`Transfer ${amountParsed.toString()} SOL`}
+          secondary={tx.publicKey.toString()}
+        />
+      );
+    }
+
+    return (
+      <ListItemText
+        primary="SOL Transfer"
+        secondary={tx.publicKey.toString()}
+      />
+    );
+  }
   if (idl.IDL_TAG.equals(tx.account.data.slice(0, 8))) {
     return (
       <ListItemText primary="Upgrade IDL" secondary={tx.publicKey.toString()} />
@@ -723,7 +746,7 @@ function SignerDialog({
   return (
     <Dialog open={open} fullWidth onClose={onClose} maxWidth="md">
       <DialogTitle>
-        <Typography variant="h4" component="h2">
+        <Typography variant="h4" component="h3">
           Multisig Info
         </Typography>
       </DialogTitle>
@@ -768,7 +791,7 @@ function AddTransactionDialog({
   return (
     <Dialog open={open} fullWidth onClose={onClose} maxWidth="md">
       <DialogTitle>
-        <Typography variant="h4" component="h2">
+        <Typography variant="h4" component="h3">
           New Transaction
         </Typography>
       </DialogTitle>
@@ -795,6 +818,11 @@ function AddTransactionDialog({
             onClose={onClose}
           />
           <ChangeThresholdListItem
+            didAddTransaction={didAddTransaction}
+            multisig={multisig}
+            onClose={onClose}
+          />
+          <TransferSolListItem
             didAddTransaction={didAddTransaction}
             multisig={multisig}
             onClose={onClose}
@@ -874,7 +902,7 @@ function ChangeThresholdListItemDetails({
         isSigner: true,
       },
     ];
-    const transaction = new Account();
+    const transaction = new Keypair();
     const txSize = 1000; // todo
     const tx = await multisigClient.rpc.createTransaction(
       multisigClient.programId,
@@ -996,7 +1024,7 @@ function SetOwnersListItemDetails({
         isSigner: true,
       },
     ];
-    const transaction = new Account();
+    const transaction = new Keypair();
     const txSize = 5000; // TODO: tighter bound.
     const tx = await multisigClient.rpc.createTransaction(
       multisigClient.programId,
@@ -1143,7 +1171,7 @@ function UpgradeIdlListItemDetails({
       { pubkey: multisigSigner, isWritable: true, isSigner: false },
     ];
     const txSize = 1000; // TODO: tighter bound.
-    const transaction = new Account();
+    const transaction = new Keypair();
     const tx = await multisigClient.rpc.createTransaction(
       programAddr,
       accs,
@@ -1245,6 +1273,10 @@ const BPF_LOADER_UPGRADEABLE_PID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
 );
 
+const NATIVE_LOADER_PID = new PublicKey(
+  "NativeLoader1111111111111111111111111111111"
+);
+
 function UpgradeProgramListItemDetails({
   multisig,
   onClose,
@@ -1299,7 +1331,7 @@ function UpgradeProgramListItemDetails({
       { pubkey: multisigSigner, isWritable: false, isSigner: false },
     ];
     const txSize = 1000; // TODO: tighter bound.
-    const transaction = new Account();
+    const transaction = new Keypair();
     const tx = await multisigClient.rpc.createTransaction(
       BPF_LOADER_UPGRADEABLE_PID,
       accs,
@@ -1381,7 +1413,7 @@ function TransferTokenListItem({
     <>
       <ListItem button onClick={() => setOpen((open) => !open)}>
         <ListItemIcon>
-          <MoneyRounded />
+          <LocalOffer />
         </ListItemIcon>
         <ListItemText primary={"Transfer Token"} />
         {open ? <ExpandLess /> : <ExpandMore />}
@@ -1475,7 +1507,7 @@ function TransferTokenListItemDetails({
       [],
       new u64(amountInLamports.toString())
     );
-    const transaction = new Account();
+    const transaction = new Keypair();
     const tx = await multisigClient.rpc.createTransaction(
       TOKEN_PROGRAM_ID,
       transferIx.keys,
@@ -1566,6 +1598,157 @@ function TransferTokenListItemDetails({
   );
 }
 
+function TransferSolListItem({
+  multisig,
+  onClose,
+  didAddTransaction,
+}: {
+  multisig: PublicKey;
+  onClose: Function;
+  didAddTransaction: (tx: PublicKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ListItem button onClick={() => setOpen((open) => !open)}>
+        <ListItemIcon>
+          <AttachMoneyIcon />
+        </ListItemIcon>
+        <ListItemText primary={"Transfer SOL"} />
+        {open ? <ExpandLess /> : <ExpandMore />}
+      </ListItem>
+      <Collapse in={open} timeout="auto" unmountOnExit>
+        <TransferSolListItemDetails
+          didAddTransaction={didAddTransaction}
+          multisig={multisig}
+          onClose={onClose}
+        />
+      </Collapse>
+    </>
+  );
+}
+
+function TransferSolListItemDetails({
+  multisig,
+  onClose,
+  didAddTransaction,
+}: {
+  multisig: PublicKey;
+  onClose: Function;
+  didAddTransaction: (tx: PublicKey) => void;
+}) {
+  const source = '3FmTXS9bTF2wsDTLUK3R6VKPnY1qFbubVUwKk2TrxTf8';
+  // const [source, setSource] = useState<null | string>(null);
+  const [destination, setDestination] = useState<null | string>(null);
+  const [amount, setAmount] = useState<null | u64>(null);
+
+  const multisigClient = useMultisigProgram();
+  const { enqueueSnackbar } = useSnackbar();
+
+  const createTransactionAccount = async () => {
+    enqueueSnackbar("Creating transaction", {
+      variant: "info",
+    });
+    const sourceAddr = new PublicKey(source as string);
+    const destinationAddr = new PublicKey(destination as string);
+    const [multisigSigner] = await PublicKey.findProgramAddress(
+      [multisig.toBuffer()],
+      multisigClient.programId
+    );
+    console.log('sourceAddr: ' + sourceAddr);
+    console.log('proposer: ' + multisigClient.provider.wallet.publicKey);
+
+    if (!amount) {
+      enqueueSnackbar("No amount provided", {
+        variant: "warning",
+      });
+      return;
+    }
+    console.log(amount);
+    const amountInLamports = Number(amount.toString()) * LAMPORTS_PER_SOL;
+    console.log(amountInLamports);
+
+    const transferIx = SystemProgram.transfer({
+      fromPubkey: sourceAddr,
+      toPubkey: destinationAddr,
+      lamports: amountInLamports
+    });
+
+    // const blockhashObj = await multisigClient.provider.connection.getRecentBlockhash();
+    // transferIx.recentBlockhash = await blockhashObj.blockhash;
+    // transferIx.sign(sourceAddr);
+
+    const transaction = new Keypair();
+    const tx = await multisigClient.rpc.createTransaction(
+      NATIVE_LOADER_PID,
+      transferIx.keys,
+      Buffer.from(transferIx.data),
+      {
+        accounts: {
+          multisig,
+          transaction: transaction.publicKey,
+          proposer: multisigClient.provider.wallet.publicKey,
+          rent: SYSVAR_RENT_PUBKEY,
+        },
+        signers: [transaction],
+        instructions: [
+          await multisigClient.account.transaction.createInstruction(
+            transaction,
+            // @ts-ignore
+            1000
+          ),
+        ],
+      }
+    );
+    enqueueSnackbar("Transaction created", {
+      variant: "success",
+      action: <ViewTransactionOnExplorerButton signature={tx} />,
+    });
+    didAddTransaction(transaction.publicKey);
+    onClose();
+  };
+
+  return (
+    <div
+      style={{
+        background: "#f1f0f0",
+        paddingTop: "24px",
+        paddingLeft: "24px",
+        paddingRight: "24px",
+      }}
+    >
+      <FormControl fullWidth>
+        <TextField
+          style={{ marginTop: "16px" }}
+          fullWidth
+          label="Amount"
+          value={amount}
+          onChange={(e) => setAmount(new u64(e.target.value as string))}
+        />
+        <TextField
+          style={{ marginTop: "16px" }}
+          fullWidth
+          label="Destination Address"
+          value={destination}
+          onChange={(e) => setDestination(e.target.value as string)}
+        />
+      </FormControl>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "16px",
+          paddingBottom: "16px",
+        }}
+      >
+        <Button onClick={() => createTransactionAccount()}>
+          Create SOL Transfer
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // @ts-ignore
 function icon(tx, multisigClient) {
   if (tx.account.programId.equals(BPF_LOADER_UPGRADEABLE_PID)) {
@@ -1588,7 +1771,10 @@ function icon(tx, multisigClient) {
     }
   }
   if (tx.account.programId.equals(TOKEN_PROGRAM_ID)) {
-    return <MoneyRounded />
+    return <LocalOffer />
+  }
+  if (tx.account.programId.equals(NATIVE_LOADER_PID)) {
+    return <AttachMoneyIcon />
   }
   if (idl.IDL_TAG.equals(tx.account.data.slice(0, 8))) {
     return <DescriptionIcon />;

@@ -22,6 +22,7 @@ import {
 import { ConnectionProvider } from "./context/connection";
 import './App.css'
 import { AccountProvider } from "./context/AccountContext";
+import { store } from "./store";
 
 function App() {
   const theme = createMuiTheme({
@@ -39,6 +40,7 @@ function App() {
     () => [
         getPhantomWallet(),
         getSolflareWallet(),
+        getSolletWallet(),
         getTorusWallet({
             options: {
                 clientId: 'BOM5Cl7PXgE9Ylq1Z1tqzhpydY0RVr8k90QQ85N7AKI5QGSrr9iDC-3rvmy0K_hF0JfpLMiXoDhta68JwcxS1LQ',
@@ -47,7 +49,6 @@ function App() {
         getLedgerWallet(),
         getSolongWallet(),
         getMathWallet(),
-        getSolletWallet(),
     ],
     []
   );
@@ -80,7 +81,14 @@ function App() {
 }
 
 function MultisigPage() {
-  const multisig = new PublicKey("6ExGdhoUeqzExzXWx1tW2RPojuRnfXeTRwQ7sCeEcnKy");
+  // const state = store.getState()
+  // const { hash } = window.location;
+  // if (hash) {
+  //   window.location.href = `#/${state.common.network.defaultMultisig!.toString()}`;
+  // }
+  const multisig = new PublicKey("3FmTXS9bTF2wsDTLUK3R6VKPnY1qFbubVUwKk2TrxTf8");
+
+  // const multisig = state.common.network.defaultMultisig;
   return <Multisig multisig={multisig} />;
 }
 
