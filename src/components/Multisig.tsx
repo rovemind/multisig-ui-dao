@@ -19,7 +19,7 @@ import TableHead from "@material-ui/core/TableHead";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
 import TableRow from "@material-ui/core/TableRow";
-import AttachMoneyIcon from '@material-ui/icons/AttachMoney';
+import AttachMoneyIcon from "@material-ui/icons/AttachMoney";
 import BuildIcon from "@material-ui/icons/Build";
 import Tooltip from "@material-ui/core/Tooltip";
 import CircularProgress from "@material-ui/core/CircularProgress";
@@ -47,20 +47,35 @@ import BN from "bn.js";
 import {
   Keypair,
   PublicKey,
+  Transaction,
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
   SYSVAR_CLOCK_PUBKEY,
-  LAMPORTS_PER_SOL
+  LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 import { ViewTransactionOnExplorerButton } from "./Notification";
 import * as idl from "../utils/idl";
 import { useMultisigProgram } from "../hooks/useMultisigProgram";
-import { Token, TOKEN_PROGRAM_ID, u64, AccountInfo as TokenAccount, AccountLayout, AccountInfo } from '@solana/spl-token';
+import {
+  Token,
+  TOKEN_PROGRAM_ID,
+  u64,
+  AccountInfo as TokenAccount,
+  AccountLayout,
+  AccountInfo,
+} from "@solana/spl-token";
 import { Connection } from "@solana/web3.js";
-import { getMintInfo, getTokenAccount, parseTokenAccount } from "@project-serum/common";
+import {
+  getMintInfo,
+  getTokenAccount,
+  parseTokenAccount,
+} from "@project-serum/common";
 import { useMultiSigOwnedTokenAccounts } from "../hooks/useOwnedTokenAccounts";
 import { FormControl, InputLabel, MenuItem, Select } from "@material-ui/core";
 import { ACCOUNT_LAYOUT } from "@project-serum/common/dist/lib/token";
+
+import { sign } from "tweetnacl";
+import * as toBuffer from "typedarray-to-buffer";
 
 export default function Multisig({ multisig }: { multisig?: PublicKey }) {
   return (
@@ -108,13 +123,12 @@ export function MultisigInstance({ multisig }: { multisig: PublicKey }) {
   const [multisigAccount, setMultisigAccount] = useState<any>(undefined);
   const [transactions, setTransactions] = useState<any>(null);
   const [showSignerDialog, setShowSignerDialog] = useState(false);
-  const [showAddTransactionDialog, setShowAddTransactionDialog] = useState(
-    false
-  );
+  const [showAddTransactionDialog, setShowAddTransactionDialog] =
+    useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   useEffect(() => {
-    multisigClient.account
-      .multisig.fetch(multisig)
+    multisigClient.account.multisig
+      .fetch(multisig)
       .then((account: any) => {
         setMultisigAccount(account);
       })
@@ -323,7 +337,9 @@ export function NewMultisigDialog({
           label="Max Number of Participants (cannot grow the owner set past this)"
           value={maxParticipantLength}
           type="number"
-          onChange={(e) => setMaxParticipantLength(parseInt(e.target.value) as number)}
+          onChange={(e) =>
+            setMaxParticipantLength(parseInt(e.target.value) as number)
+          }
         />
         {participants.map((p, idx) => (
           <TextField
@@ -343,7 +359,9 @@ export function NewMultisigDialog({
             onClick={() => {
               const p = [...participants];
               // @ts-ignore
-              p.push(new PublicKey("11111111111111111111111111111111").toString());
+              p.push(
+                new PublicKey("11111111111111111111111111111111").toString()
+              );
               setParticipants(p);
             }}
           >
@@ -489,7 +507,11 @@ function TxListItem({
   };
   return (
     <>
-      <ListItem button onClick={() => setOpen(!open)} key={tx.publicKey.toString()}>
+      <ListItem
+        button
+        onClick={() => setOpen(!open)}
+        key={tx.publicKey.toString()}
+      >
         <ListItemIcon>{icon(tx, multisigClient)}</ListItemIcon>
         {ixLabel(tx, multisigClient)}
         {txAccount.didExecute && (
@@ -549,7 +571,9 @@ function TxListItem({
                   {rows.map((r) => (
                     <TableRow>
                       <TableCell key={r.field}>{r.field}</TableCell>
-                      <TableCell align="right" key={`${r.field}-value`}>{r.value}</TableCell>
+                      <TableCell align="right" key={`${r.field}-value`}>
+                        {r.value}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -673,7 +697,7 @@ function ixLabel(tx: any, multisigClient: any) {
       />
     );
   }
-  if (tx.account.programId.equals(NATIVE_LOADER_PID)) {
+  if (tx.account.programId.equals(SYSTEM_PID)) {
     const tag = tx.account.data.slice(0, 1);
     const amountBuf = tx.account.data.slice(1, 9) as Buffer;
     const amountParsed = u64.fromBuffer(amountBuf);
@@ -1083,7 +1107,9 @@ function SetOwnersListItemDetails({
           onClick={() => {
             const p = [...participants];
             // @ts-ignore
-            p.push(new PublicKey("11111111111111111111111111111111").toString());
+            p.push(
+              new PublicKey("11111111111111111111111111111111").toString()
+            );
             setParticipants(p);
           }}
         >
@@ -1143,7 +1169,6 @@ function UpgradeIdlListItemDetails({
   onClose: Function;
   didAddTransaction: (tx: PublicKey) => void;
 }) {
-
   const [programId, setProgramId] = useState<null | string>(null);
   const [buffer, setBuffer] = useState<null | string>(null);
 
@@ -1277,6 +1302,10 @@ const NATIVE_LOADER_PID = new PublicKey(
   "NativeLoader1111111111111111111111111111111"
 );
 
+const SYSTEM_PID = new PublicKey(
+  "11111111111111111111111111111111"
+);
+
 function UpgradeProgramListItemDetails({
   multisig,
   onClose,
@@ -1301,9 +1330,8 @@ function UpgradeProgramListItemDetails({
     const data = Buffer.from([3, 0, 0, 0]);
 
     const programAccount = await (async () => {
-      const programAccount = await multisigClient.provider.connection.getAccountInfo(
-        programAddr
-      );
+      const programAccount =
+        await multisigClient.provider.connection.getAccountInfo(programAddr);
       if (programAccount === null) {
         throw new Error("Invalid program ID");
       }
@@ -1442,11 +1470,14 @@ function TransferTokenListItemDetails({
   const [destination, setDestination] = useState<null | string>(null);
   const [amount, setAmount] = useState<null | u64>(null);
 
-
   const multisigClient = useMultisigProgram();
   const { enqueueSnackbar } = useSnackbar();
 
-  const tokenAccounts = useMultiSigOwnedTokenAccounts(multisigClient.provider, multisig, multisigClient.programId)
+  const tokenAccounts = useMultiSigOwnedTokenAccounts(
+    multisigClient.provider,
+    multisig,
+    multisigClient.programId
+  );
 
   const createTransactionAccount = async () => {
     enqueueSnackbar("Creating transaction", {
@@ -1460,15 +1491,18 @@ function TransferTokenListItemDetails({
     );
     const sourceTokenAccount = await getTokenAccount(
       multisigClient.provider,
-      sourceAddr,
+      sourceAddr
     );
 
-    const destinationAccountInfo = await multisigClient.provider.connection.getAccountInfo(
-      destinationAddr
-    );
+    const destinationAccountInfo =
+      await multisigClient.provider.connection.getAccountInfo(destinationAddr);
 
-    if (destinationAccountInfo === null || destinationAccountInfo.owner.toString() !== TOKEN_PROGRAM_ID.toString() || destinationAccountInfo.data.length !== ACCOUNT_LAYOUT.span) {
-      debugger
+    if (
+      destinationAccountInfo === null ||
+      destinationAccountInfo.owner.toString() !== TOKEN_PROGRAM_ID.toString() ||
+      destinationAccountInfo.data.length !== ACCOUNT_LAYOUT.span
+    ) {
+      debugger;
       enqueueSnackbar("Not token account", {
         variant: "error",
       });
@@ -1480,7 +1514,10 @@ function TransferTokenListItemDetails({
       destinationAddr
     );
 
-    if (sourceTokenAccount.mint.toBase58() !== destinationTokenAccount.mint.toBase58()) {
+    if (
+      sourceTokenAccount.mint.toBase58() !==
+      destinationTokenAccount.mint.toBase58()
+    ) {
       enqueueSnackbar("Token mint does not match", {
         variant: "error",
       });
@@ -1488,7 +1525,9 @@ function TransferTokenListItemDetails({
     }
 
     const tokenMint = await getMintInfo(
-      multisigClient.provider, sourceTokenAccount.mint);
+      multisigClient.provider,
+      sourceTokenAccount.mint
+    );
 
     if (!amount) {
       enqueueSnackbar("No amount provided", {
@@ -1548,23 +1587,19 @@ function TransferTokenListItemDetails({
     >
       <FormControl fullWidth>
         <InputLabel id="source-select-label">Source Token Account</InputLabel>
-        <Select
-          autoWidth={true}
-          value={source}
-        >
-          {tokenAccounts.map(
-            tokenAccount => {
-              return (
-                <MenuItem value={tokenAccount.address.toString()} onClick={
-                  () => {
-                    setSource(tokenAccount.address.toString());
-                  }
-                }>
-                  {tokenAccount.address.toString()}
-                </MenuItem>
-              )
-            }
-          )}
+        <Select autoWidth={true} value={source}>
+          {tokenAccounts.map((tokenAccount) => {
+            return (
+              <MenuItem
+                value={tokenAccount.address.toString()}
+                onClick={() => {
+                  setSource(tokenAccount.address.toString());
+                }}
+              >
+                {tokenAccount.address.toString()}
+              </MenuItem>
+            );
+          })}
         </Select>
         <TextField
           style={{ marginTop: "16px" }}
@@ -1580,7 +1615,6 @@ function TransferTokenListItemDetails({
           value={destination}
           onChange={(e) => setDestination(e.target.value as string)}
         />
-
       </FormControl>
       <div
         style={{
@@ -1637,10 +1671,10 @@ function TransferSolListItemDetails({
   onClose: Function;
   didAddTransaction: (tx: PublicKey) => void;
 }) {
-  const source = '3FmTXS9bTF2wsDTLUK3R6VKPnY1qFbubVUwKk2TrxTf8';
+  const source = "99FCf6q7yaC7vZkAz37ZerZxCJrhaabQnv8yR3jATzvS";
   // const [source, setSource] = useState<null | string>(null);
-  const [destination, setDestination] = useState<null | string>(null);
-  const [amount, setAmount] = useState<null | u64>(null);
+  const [destination, setDestination] = useState<null | string>("3h5WxhfdrhySxZYs8w7mHgKpuW1nFuw7FCkRdoe86YzW");
+  const [amount, setAmount] = useState<null | u64>(new BN(1));
 
   const multisigClient = useMultisigProgram();
   const { enqueueSnackbar } = useSnackbar();
@@ -1649,14 +1683,15 @@ function TransferSolListItemDetails({
     enqueueSnackbar("Creating transaction", {
       variant: "info",
     });
-    const sourceAddr = new PublicKey(source as string);
+    const multisigWallet = new PublicKey(source as string);
     const destinationAddr = new PublicKey(destination as string);
     const [multisigSigner] = await PublicKey.findProgramAddress(
       [multisig.toBuffer()],
       multisigClient.programId
     );
-    console.log('sourceAddr: ' + sourceAddr);
-    console.log('proposer: ' + multisigClient.provider.wallet.publicKey);
+    console.log("multisigWallet: " + multisigWallet);
+    console.log("proposer: " + multisigClient.provider.wallet.publicKey);
+    console.log("multisigner: " + multisigSigner);
 
     if (!amount) {
       enqueueSnackbar("No amount provided", {
@@ -1668,21 +1703,96 @@ function TransferSolListItemDetails({
     const amountInLamports = Number(amount.toString()) * LAMPORTS_PER_SOL;
     console.log(amountInLamports);
 
-    const transferIx = SystemProgram.transfer({
-      fromPubkey: sourceAddr,
-      toPubkey: destinationAddr,
-      lamports: amountInLamports
+    console.log(`Get recentBlockhash`);
+    let recentBlockhash =
+      await multisigClient.provider.connection.getRecentBlockhash();
+
+    // console.log(`Create transactionAccount`);
+    // const transactionAccount = new Keypair();
+    // console.log(`transactionAccount: ${transactionAccount.publicKey}`);
+
+    // const transferIx = SystemProgram.transfer({
+    //   fromPubkey: multisigWallet,
+    //   toPubkey: destinationAddr,
+    //   lamports: amountInLamports,
+    // });
+
+    // Airdrop SOL for paying transactions
+    // const solAirdropAmount = LAMPORTS_PER_SOL * 1.23;
+    // console.log(`Airdrop ${solAirdropAmount} SOL to transactionAccount`);
+    // let airdropSignature =
+    //   await multisigClient.provider.connection.requestAirdrop(
+    //     transactionAccount.publicKey,
+    //     solAirdropAmount
+    //   );
+
+    // await multisigClient.provider.connection.confirmTransaction(
+    //   airdropSignature
+    // );
+    // console.log(`SOL airdropped`);
+
+    let mtx = new Transaction({
+      recentBlockhash: recentBlockhash.blockhash,
+      feePayer: multisigSigner
+      // feePayer: multisigClient.provider.wallet.publicKey
+      // feePayer: transactionAccount.publicKey,
     });
 
-    // const blockhashObj = await multisigClient.provider.connection.getRecentBlockhash();
-    // transferIx.recentBlockhash = await blockhashObj.blockhash;
-    // transferIx.sign(sourceAddr);
+    console.log(`Add transfer intruction for ${amountInLamports} lamports`);
+    mtx.add(
+      SystemProgram.transfer({
+        fromPubkey: multisigSigner,
+        toPubkey: destinationAddr,
+        lamports: amountInLamports,
+      })
+    );
 
+    // let transactionBuffer = manualTransaction.serializeMessage();
+    // let signature = sign.detached(
+    //   transactionBuffer,
+    //   transactionAccount.secretKey
+    // );
+    // console.log(`Signature ${signature}`);
+
+    // console.log(`Create buffer`);
+    // var signatureBuffer = toBuffer(signature.buffer);
+    // console.log(`signatureBuffer ${signatureBuffer}`);
+
+    // console.log(`Add sig.`);
+    // manualTransaction.addSignature(
+    //   transactionAccount.publicKey,
+    //   signatureBuffer
+    // );
+
+    // console.log(`Sign with current wallet`);
+    // manualTransaction = await multisigClient.provider.wallet.signTransaction(manualTransaction)
+
+    // console.log(`Verify sig`);
+    // let isVerifiedSignature = manualTransaction.verifySignatures();
+    // console.log(`The signatures were verifed: ${isVerifiedSignature}`);
+
+    // console.log(
+    //   `manualTransaction's instructions length: ${manualTransaction.instructions.length}`
+    // );
+
+    const accounts = [
+      {
+        pubkey: multisig,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: multisigSigner,
+        isWritable: false,
+        isSigner: true,
+      },
+    ];
     const transaction = new Keypair();
+    console.log(`transaction: ${transaction.publicKey}`);
     const tx = await multisigClient.rpc.createTransaction(
-      NATIVE_LOADER_PID,
-      transferIx.keys,
-      Buffer.from(transferIx.data),
+      SYSTEM_PID,
+      mtx.instructions[0].keys,
+      Buffer.from(mtx.instructions[0].data),
       {
         accounts: {
           multisig,
@@ -1771,10 +1881,10 @@ function icon(tx, multisigClient) {
     }
   }
   if (tx.account.programId.equals(TOKEN_PROGRAM_ID)) {
-    return <LocalOffer />
+    return <LocalOffer />;
   }
-  if (tx.account.programId.equals(NATIVE_LOADER_PID)) {
-    return <AttachMoneyIcon />
+  if (tx.account.programId.equals(SYSTEM_PID)) {
+    return <AttachMoneyIcon />;
   }
   if (idl.IDL_TAG.equals(tx.account.data.slice(0, 8))) {
     return <DescriptionIcon />;
@@ -1796,7 +1906,6 @@ function setOwnersData(multisigClient, owners) {
   });
 }
 
-
 // Deterministic IDL address as a function of the program id.
 async function idlAddress(programId: PublicKey): Promise<PublicKey> {
   const base = (await PublicKey.findProgramAddress([], programId))[0];
@@ -1810,30 +1919,24 @@ function seed(): string {
 
 export async function getOwnedTokenAccounts(
   connection: Connection,
-  publicKey: PublicKey,
+  publicKey: PublicKey
 ): Promise<TokenAccount[]> {
-  const accounts = await connection.getProgramAccounts(
-    TOKEN_PROGRAM_ID,
-    {
-      filters: [
-        {
-          memcmp: {
-            offset: 32,
-            bytes: publicKey.toBase58(),
-          }
+  const accounts = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
+    filters: [
+      {
+        memcmp: {
+          offset: 32,
+          bytes: publicKey.toBase58(),
         },
-        {
-          dataSize: AccountLayout.span,
-        }
-      ]
-    }
-  );
-  return (
-    accounts
-      .map(r => {
-        const tokenAccount = parseTokenAccount(r.account.data);
-        tokenAccount.address = r.pubkey;
-        return tokenAccount;
-      })
-  );
+      },
+      {
+        dataSize: AccountLayout.span,
+      },
+    ],
+  });
+  return accounts.map((r) => {
+    const tokenAccount = parseTokenAccount(r.account.data);
+    tokenAccount.address = r.pubkey;
+    return tokenAccount;
+  });
 }

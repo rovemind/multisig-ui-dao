@@ -86,7 +86,7 @@ function MultisigPage() {
   // if (hash) {
   //   window.location.href = `#/${state.common.network.defaultMultisig!.toString()}`;
   // }
-  const multisig = new PublicKey("3FmTXS9bTF2wsDTLUK3R6VKPnY1qFbubVUwKk2TrxTf8");
+  const multisig = new PublicKey("99FCf6q7yaC7vZkAz37ZerZxCJrhaabQnv8yR3jATzvS");
 
   // const multisig = state.common.network.defaultMultisig;
   return <Multisig multisig={multisig} />;
