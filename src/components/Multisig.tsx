@@ -1302,9 +1302,7 @@ const NATIVE_LOADER_PID = new PublicKey(
   "NativeLoader1111111111111111111111111111111"
 );
 
-const SYSTEM_PID = new PublicKey(
-  "11111111111111111111111111111111"
-);
+const SYSTEM_PID = new PublicKey("11111111111111111111111111111111");
 
 function UpgradeProgramListItemDetails({
   multisig,
@@ -1672,9 +1670,11 @@ function TransferSolListItemDetails({
   didAddTransaction: (tx: PublicKey) => void;
 }) {
   const source = "99FCf6q7yaC7vZkAz37ZerZxCJrhaabQnv8yR3jATzvS";
-  // const [source, setSource] = useState<null | string>(null);
-  const [destination, setDestination] = useState<null | string>("3h5WxhfdrhySxZYs8w7mHgKpuW1nFuw7FCkRdoe86YzW");
-  const [amount, setAmount] = useState<null | u64>(new BN(1));
+  const [destination, setDestination] = useState<null | string>(
+    "3h5WxhfdrhySxZYs8w7mHgKpuW1nFuw7FCkRdoe86YzW"
+  );
+  const [amount, setAmount] = useState<null | Number>(null);
+  const [amountInLamports, setAmountInLamports] = useState<null | u64>(null);
 
   const multisigClient = useMultisigProgram();
   const { enqueueSnackbar } = useSnackbar();
@@ -1700,42 +1700,15 @@ function TransferSolListItemDetails({
       return;
     }
     console.log(amount);
-    const amountInLamports = Number(amount.toString()) * LAMPORTS_PER_SOL;
     console.log(amountInLamports);
 
     console.log(`Get recentBlockhash`);
     let recentBlockhash =
       await multisigClient.provider.connection.getRecentBlockhash();
 
-    // console.log(`Create transactionAccount`);
-    // const transactionAccount = new Keypair();
-    // console.log(`transactionAccount: ${transactionAccount.publicKey}`);
-
-    // const transferIx = SystemProgram.transfer({
-    //   fromPubkey: multisigWallet,
-    //   toPubkey: destinationAddr,
-    //   lamports: amountInLamports,
-    // });
-
-    // Airdrop SOL for paying transactions
-    // const solAirdropAmount = LAMPORTS_PER_SOL * 1.23;
-    // console.log(`Airdrop ${solAirdropAmount} SOL to transactionAccount`);
-    // let airdropSignature =
-    //   await multisigClient.provider.connection.requestAirdrop(
-    //     transactionAccount.publicKey,
-    //     solAirdropAmount
-    //   );
-
-    // await multisigClient.provider.connection.confirmTransaction(
-    //   airdropSignature
-    // );
-    // console.log(`SOL airdropped`);
-
     let mtx = new Transaction({
       recentBlockhash: recentBlockhash.blockhash,
-      feePayer: multisigSigner
-      // feePayer: multisigClient.provider.wallet.publicKey
-      // feePayer: transactionAccount.publicKey,
+      feePayer: multisigSigner,
     });
 
     console.log(`Add transfer intruction for ${amountInLamports} lamports`);
@@ -1743,50 +1716,10 @@ function TransferSolListItemDetails({
       SystemProgram.transfer({
         fromPubkey: multisigSigner,
         toPubkey: destinationAddr,
-        lamports: amountInLamports,
+        lamports: Number(amountInLamports),
       })
     );
 
-    // let transactionBuffer = manualTransaction.serializeMessage();
-    // let signature = sign.detached(
-    //   transactionBuffer,
-    //   transactionAccount.secretKey
-    // );
-    // console.log(`Signature ${signature}`);
-
-    // console.log(`Create buffer`);
-    // var signatureBuffer = toBuffer(signature.buffer);
-    // console.log(`signatureBuffer ${signatureBuffer}`);
-
-    // console.log(`Add sig.`);
-    // manualTransaction.addSignature(
-    //   transactionAccount.publicKey,
-    //   signatureBuffer
-    // );
-
-    // console.log(`Sign with current wallet`);
-    // manualTransaction = await multisigClient.provider.wallet.signTransaction(manualTransaction)
-
-    // console.log(`Verify sig`);
-    // let isVerifiedSignature = manualTransaction.verifySignatures();
-    // console.log(`The signatures were verifed: ${isVerifiedSignature}`);
-
-    // console.log(
-    //   `manualTransaction's instructions length: ${manualTransaction.instructions.length}`
-    // );
-
-    const accounts = [
-      {
-        pubkey: multisig,
-        isWritable: true,
-        isSigner: false,
-      },
-      {
-        pubkey: multisigSigner,
-        isWritable: false,
-        isSigner: true,
-      },
-    ];
     const transaction = new Keypair();
     console.log(`transaction: ${transaction.publicKey}`);
     const tx = await multisigClient.rpc.createTransaction(
@@ -1831,9 +1764,17 @@ function TransferSolListItemDetails({
         <TextField
           style={{ marginTop: "16px" }}
           fullWidth
+          type="number"
           label="Amount"
           value={amount}
-          onChange={(e) => setAmount(new u64(e.target.value as string))}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              setAmount(Number(e.target.value as string));
+              setAmountInLamports(
+                new u64(Number(e.target.value as string) * LAMPORTS_PER_SOL)
+              );
+            }
+          }}
         />
         <TextField
           style={{ marginTop: "16px" }}
