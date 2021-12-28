@@ -77,6 +77,8 @@ import { ACCOUNT_LAYOUT } from "@project-serum/common/dist/lib/token";
 import { sign } from "tweetnacl";
 import * as toBuffer from "typedarray-to-buffer";
 
+import { useAnchorWallet } from "@solana/wallet-adapter-react";
+
 export default function Multisig({ multisig }: { multisig?: PublicKey }) {
   return (
     <div>
@@ -125,6 +127,7 @@ export function MultisigInstance({ multisig }: { multisig: PublicKey }) {
   const [showSignerDialog, setShowSignerDialog] = useState(false);
   const [showAddTransactionDialog, setShowAddTransactionDialog] =
     useState(false);
+  const [showDepositDialog, setShowDepositDialog] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
   useEffect(() => {
     multisigClient.account.multisig
@@ -149,6 +152,36 @@ export function MultisigInstance({ multisig }: { multisig: PublicKey }) {
         setMultisigAccount(account);
       });
   }, [multisigClient, multisig]);
+
+  const wallet = useAnchorWallet();
+  const [treasury, setTreasury] = useState<null | string>(null);
+  const [balance, setBalance] = useState<null | number>(null);
+
+  useEffect(() => {
+    PublicKey.findProgramAddress(
+      [multisig.toBuffer()],
+      multisigClient.programId
+    ).then((addrNonce) => {
+      setTreasury(addrNonce[0].toString());
+    });
+  }, [
+    treasury,
+    multisig,
+    multisigClient.programId,
+    setTreasury,
+    multisigClient,
+  ]);
+
+  if (treasury) {
+    (async () => {
+      const b = await multisigClient.provider.connection.getBalance(
+        new PublicKey(treasury)
+      );
+      if (b === undefined) return;
+      setBalance(b / LAMPORTS_PER_SOL);
+    })();
+  }
+
   return (
     <Container fixed maxWidth="md" style={{ marginBottom: "16px" }}>
       <div>
@@ -191,7 +224,14 @@ export function MultisigInstance({ multisig }: { multisig: PublicKey }) {
                 <Typography variant="h6" style={{ flexGrow: 1 }} component="h2">
                   {multisig.toString()} | {multisigAccount.threshold.toString()}{" "}
                   of {multisigAccount.owners.length.toString()} Multisig
+                  <br />
+                  Treasury balance: {balance} SOL
                 </Typography>
+                <Tooltip title="Treasury" arrow>
+                  <IconButton onClick={() => setShowDepositDialog(true)}>
+                    <AttachMoneyIcon />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title="Signer" arrow>
                   <IconButton onClick={() => setShowSignerDialog(true)}>
                     <InfoIcon />
@@ -239,6 +279,14 @@ export function MultisigInstance({ multisig }: { multisig: PublicKey }) {
         onClose={() => setShowAddTransactionDialog(false)}
         didAddTransaction={() => setForceRefresh(!forceRefresh)}
       />
+      {multisigAccount && (
+        <DepositDialog
+          multisig={multisig}
+          open={showDepositDialog}
+          onClose={() => setShowDepositDialog(false)}
+          didAddTransaction={() => setForceRefresh(!forceRefresh)}
+        />
+      )}
       {multisigAccount && (
         <SignerDialog
           key={multisigClient.provider.wallet.publicKey.toString()}
@@ -797,6 +845,195 @@ function SignerDialog({
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
+    </Dialog>
+  );
+}
+
+function DepositDialog({
+  multisig,
+  open,
+  onClose,
+  didAddTransaction,
+}: {
+  multisig: PublicKey;
+  open: boolean;
+  onClose: () => void;
+  didAddTransaction: (tx: PublicKey) => void;
+}) {
+  return (
+    <>
+      <ListItem button>
+        <ListItemIcon>
+          <GavelIcon />
+        </ListItemIcon>
+        <ListItemText primary={"Change threshold"} />
+        {open ? <ExpandLess /> : <ExpandMore />}
+      </ListItem>
+      <Collapse in={open} timeout="auto" unmountOnExit>
+        <DepositDialogDetails
+          open={open}
+          didAddTransaction={didAddTransaction}
+          multisig={multisig}
+          onClose={onClose}
+        />
+      </Collapse>
+    </>
+  );
+}
+
+function DepositDialogDetails({
+  open,
+  multisig,
+  onClose,
+  didAddTransaction,
+}: {
+  open: boolean;
+  multisig: PublicKey;
+  onClose: () => void;
+  didAddTransaction: (tx: PublicKey) => void;
+}) {
+  const wallet = useAnchorWallet();
+  const multisigClient = useMultisigProgram();
+  const [treasury, setTreasury] = useState<null | string>(null);
+  const [balance, setBalance] = useState<null | number>(null);
+  const [fromBalance, setFromBalance] = useState<null | number>(null);
+
+  useEffect(() => {
+    PublicKey.findProgramAddress(
+      [multisig.toBuffer()],
+      multisigClient.programId
+    ).then((addrNonce) => {
+      setTreasury(addrNonce[0].toString());
+    });
+  }, [
+    treasury,
+    multisig,
+    multisigClient.programId,
+    setTreasury,
+    multisigClient,
+  ]);
+
+  if (treasury) {
+    (async () => {
+      const b = await multisigClient.provider.connection.getBalance(
+        new PublicKey(treasury)
+      );
+      if (b === undefined) return;
+      setBalance(b / LAMPORTS_PER_SOL);
+    })();
+  }
+
+  if (wallet) {
+    (async () => {
+      const b = await multisigClient.provider.connection.getBalance(
+        wallet.publicKey
+      );
+      if (b === undefined) return;
+      setFromBalance(b / LAMPORTS_PER_SOL);
+    })();
+  }
+
+  const { enqueueSnackbar } = useSnackbar();
+
+  const [amount, setAmount] = useState<null | Number>(null);
+  const [amountInLamports, setAmountInLamports] = useState<null | u64>(null);
+
+  const depositSol = async () => {
+    enqueueSnackbar("Depositing SOL", {
+      variant: "info",
+    });
+
+    const fromtWallet = multisigClient.provider.wallet;
+
+    const instructions = SystemProgram.transfer({
+      fromPubkey: fromtWallet.publicKey,
+      toPubkey: new PublicKey(treasury || ""),
+      lamports: Number(amountInLamports) || 0,
+    });
+
+    const transaction = new Transaction().add(instructions);
+    transaction.feePayer = await multisigClient.provider.wallet.publicKey;
+    let blockhashObj =
+      await multisigClient.provider.connection.getRecentBlockhash();
+    transaction.recentBlockhash = await blockhashObj.blockhash;
+    let signed = await multisigClient.provider.wallet.signTransaction(
+      transaction
+    );
+
+    const tx = await multisigClient.provider.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await multisigClient.provider.connection.confirmTransaction(tx);
+    enqueueSnackbar("Deposit executed", {
+      variant: "success",
+      // action: <ViewTransactionOnExplorerButton signature={tx} />, //need fix it defaults to mainnet
+    });
+    setAmount(null);
+    setAmountInLamports(null);
+    didAddTransaction(fromtWallet.publicKey);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} fullWidth onClose={onClose} maxWidth="md">
+      <DialogTitle>
+        <Typography variant="h4" component="h3">
+          Treasury
+        </Typography>
+      </DialogTitle>
+      <DialogContent style={{ paddingBottom: "16px" }}>
+        <DialogContentText>
+          Address: {treasury}
+          <br />
+          Current balance: {balance} SOL
+          <br />
+        </DialogContentText>
+        {(wallet && (
+          <>
+            <DialogContentText>
+              Your balance: {fromBalance} SOL
+              <br />
+              <br />
+              <b>Deposit SOL</b> into the treasury:
+              <br />
+            </DialogContentText>
+            <FormControl fullWidth>
+              <TextField
+                style={{ marginTop: "16px" }}
+                fullWidth
+                type="number"
+                label="Amount"
+                value={amount}
+                focused
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setAmount(Number(e.target.value as string));
+                    setAmountInLamports(
+                      new u64(
+                        Number(e.target.value as string) * LAMPORTS_PER_SOL
+                      )
+                    );
+                  }
+                }}
+              />
+            </FormControl>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "16px",
+                paddingBottom: "16px",
+              }}
+            >
+              <Button onClick={() => depositSol()}>Deposit</Button>
+            </div>
+          </>
+        )) || (
+          <DialogContentText>
+            <b>Connect wallet to deposit SOL.</b>
+          </DialogContentText>
+        )}
+      </DialogContent>
     </Dialog>
   );
 }
