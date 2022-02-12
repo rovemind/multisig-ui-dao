@@ -70,10 +70,11 @@ export const networks: Networks = {
     url: "https://api.devnet.solana.com",
     explorerClusterSuffix: "devnet",
     multisigProgramId: new PublicKey(
-      "81u91ekry3qovR9Pn7tAYKBRRYffkgnK3hS4ygq3bbHo"
+      "msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt"
+      // "81u91ekry3qovR9Pn7tAYKBRRYffkgnK3hS4ygq3bbHo"
     ),
     multisigUpgradeAuthority: new PublicKey(
-      "EPJ42Bi719xTVB2T2v2NfJQSkdPdL3WmRXpX877FZVf5"
+      "99FCf6q7yaC7vZkAz37ZerZxCJrhaabQnv8yR3jATzvS"
       // "D1gcX4mCZo5aB2WAKmyC4a5ZWyN8yB9GfuXBkH9K9P2z"
       // Other multisig accounts
       // "4D6S2eeRhSqQ846U8DP28PP2igzkcBRZuVCWMapq6Xmp"
